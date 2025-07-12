@@ -72,25 +72,21 @@ public class TournamentDataLoader {
                 Elements cells = row.select("td");
                 if (cells.size() < 8) continue;
 
-                String firstName = cells.get(1).text();
-                String lastName = cells.get(2).text();
+                String fullname = cells.get(1).text()+" "+cells.get(2).text();
                 String country = cells.get(3).text();
                 String division = cells.get(4).text().toUpperCase();
-                String trainerName = cells.get(5).text();
                 Element link = cells.get(6).selectFirst("a");
 
                 if (link != null) {
                     String relativeHref = link.attr("href");
                     String teamUrl = "https://rk9.gg" + relativeHref;
 
-                    Player player = playerRepository.findByFirstNameAndLastNameAndCountry(firstName, lastName, country)
+                    Player player = playerRepository.findByFullnameAndCountry(fullname, country)
                             .orElseGet(() -> {
                                 Player p = new Player();
-                                p.setFirstName(firstName);
-                                p.setLastName(lastName);
+                                p.setFullname(fullname);
                                 p.setDivision(division);
                                 p.setCountry(country);
-                                p.setTrainerName(trainerName);
                                 playerRepository.save(p);
                                 return p;
                             });
@@ -104,7 +100,7 @@ public class TournamentDataLoader {
                 }
             }
 
-            matchDataLoader.importMatches(code);
+            matchDataLoader.importMatchesForAllCategories(code);
 
             System.out.println("Tournament import complete.");
             return true;

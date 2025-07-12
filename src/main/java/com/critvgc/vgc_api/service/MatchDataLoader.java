@@ -2,7 +2,6 @@ package com.critvgc.vgc_api.service;
 
 import com.critvgc.vgc_api.model.Match;
 import com.critvgc.vgc_api.model.Player;
-import com.critvgc.vgc_api.model.Team;
 import com.critvgc.vgc_api.model.Tournament;
 import com.critvgc.vgc_api.repository.MatchRepository;
 import com.critvgc.vgc_api.repository.PlayerRepository;
@@ -15,7 +14,6 @@ import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class MatchDataLoader {
@@ -35,7 +33,7 @@ public class MatchDataLoader {
         this.matchRepository = matchRepository;
     }
 
-    public boolean importMatches(String code) {
+    public boolean importMatchesForAllCategories(String code) {
         try {
             Optional<Tournament> optTournament = tournamentRepository.findByCode(code);
             if (optTournament.isEmpty()) {
@@ -44,75 +42,63 @@ public class MatchDataLoader {
             }
 
             Tournament tournament = optTournament.get();
-            List<Integer> rounds = fetchAvailableRounds(code);
-            System.out.println("Found rounds: " + rounds);
+            Map<String, Integer> roundCounts = fetchCategoryRoundCounts(code);
+            Map<String, Integer> pods = Map.of("masters", 2, "seniors", 1, "juniors", 0);
 
-            int imported = 0;
+            int totalImported = 0;
+            for (String category : roundCounts.keySet()) {
+                int pod = pods.getOrDefault(category, 2);
+                int rounds = roundCounts.get(category);
 
-            for (int round : rounds) {
-                String roundUrl = "https://rk9.gg/pairings/" + code + "?pod=2&round=" + round;
-                Document doc = Jsoup.connect(roundUrl).get();
+                for (int round = 1; round <= rounds; round++) {
+                    String url = "https://rk9.gg/pairings/" + code + "?pod=" + pod + "&round=" + round;
+                    Document doc = Jsoup.connect(url).get();
+                    Elements matches = doc.select("div.row.row-cols-3.match.no-gutter.complete");
 
-                Elements matchDivs = doc.select("div.row.row-cols-3.match.no-gutter.complete");
+                    for (Element match : matches) {
+                        Element player1Div = match.selectFirst("div.player1");
+                        Element player2Div = match.selectFirst("div.player2");
+                        if (player1Div == null || player2Div == null) continue;
 
-                for (Element matchDiv : matchDivs) {
-                    Element p1Div = matchDiv.selectFirst("div.player1");
-                    Element p2Div = matchDiv.selectFirst("div.player2");
+                        String name1 = player1Div.selectFirst("span.name").text().trim();
+                        String name2 = player2Div.selectFirst("span.name").text().trim();
 
-                    String name1 = p1Div.selectFirst("span.name") != null ? p1Div.selectFirst("span.name").text().trim() : null;
-                    String name2 = p2Div.selectFirst("span.name") != null ? p2Div.selectFirst("span.name").text().trim() : null;
+                        Optional<Player> optP1 = findPlayerFromDisplayName(name1);
+                        Optional<Player> optP2 = findPlayerFromDisplayName(name2);
 
-                    if (name1 == null || name2 == null) continue;
+                        if (optP1.isEmpty() || optP2.isEmpty()) {
+                            System.out.println("Skipping match, player not found: " + name1 + " vs " + name2);
+                            continue;
+                        }
 
-                    System.out.println("Recherche joueur?: " + name1);
-                    System.out.println("Recherche joueur?: " + name2);
+                        Player p1 = optP1.get();
+                        Player p2 = optP2.get();
 
-                    Optional<Player> optP1 = findPlayerFromDisplayName(name1);
-                    Optional<Player> optP2 = findPlayerFromDisplayName(name2);
+                        Match m = new Match();
+                        m.setTournamentId(tournament.getId());
+                        m.setPlayer1Id(p1.getId());
+                        m.setPlayer2Id(p2.getId());
 
-                    if (optP1.isEmpty() || optP2.isEmpty()) {
-                        System.out.println("Skipping match, player not found: " + name1 + " vs " + name2);
-                        continue;
+                        teamRepository.findByPlayerIdAndTournamentId(p1.getId(), tournament.getId())
+                                .stream().findFirst().ifPresent(t -> m.setTeam1Id(t.getId()));
+                        teamRepository.findByPlayerIdAndTournamentId(p2.getId(), tournament.getId())
+                                .stream().findFirst().ifPresent(t -> m.setTeam2Id(t.getId()));
+
+                        boolean p1Win = player1Div.classNames().contains("winner");
+                        boolean p2Win = player2Div.classNames().contains("winner");
+                        boolean tie = player1Div.classNames().contains("tie") && player2Div.classNames().contains("tie");
+
+                        if (p1Win) m.setWinnerId(p1.getId());
+                        else if (p2Win) m.setWinnerId(p2.getId());
+                        else if (tie) m.setWinnerId(null);
+
+                        matchRepository.save(m);
+                        totalImported++;
                     }
-
-                    Player p1 = optP1.get();
-                    Player p2 = optP2.get();
-
-                    Match match = new Match();
-                    match.setTournamentId(tournament.getId());
-                    match.setPlayer1Id(p1.getId());
-                    match.setPlayer2Id(p2.getId());
-
-                    // Gérer les équipes avec findAll
-                    List<Team> teams1 = teamRepository.findByPlayerId(p1.getId()).stream()
-                            .filter(t -> t.getTournamentId().equals(tournament.getId()))
-                            .collect(Collectors.toList());
-
-                    List<Team> teams2 = teamRepository.findByPlayerId(p2.getId()).stream()
-                            .filter(t -> t.getTournamentId().equals(tournament.getId()))
-                            .collect(Collectors.toList());
-
-                    if (teams1.size() > 1) System.out.println("?? Plusieurs équipes trouvées pour " + name1);
-                    if (teams2.size() > 1) System.out.println("?? Plusieurs équipes trouvées pour " + name2);
-
-                    teams1.stream().findFirst().ifPresent(t -> match.setTeam1Id(t.getId()));
-                    teams2.stream().findFirst().ifPresent(t -> match.setTeam2Id(t.getId()));
-
-                    boolean player1Won = p1Div.classNames().contains("winner");
-                    boolean player2Won = p2Div.classNames().contains("winner");
-                    boolean tie = p1Div.classNames().contains("tie") && p2Div.classNames().contains("tie");
-
-                    if (player1Won) match.setWinnerId(p1.getId());
-                    else if (player2Won) match.setWinnerId(p2.getId());
-                    else if (tie) match.setWinnerId(null); // Match nul
-                    else match.setWinnerId(null); // En cours ou erreur
-
-                    matchRepository.save(match);
-                    imported++;
                 }
             }
 
-            System.out.println("? Match import complete: " + imported + " matches.");
+            System.out.println("Imported matches: " + totalImported);
             return true;
 
         } catch (Exception e) {
@@ -122,35 +108,29 @@ public class MatchDataLoader {
         }
     }
 
+    private Map<String, Integer> fetchCategoryRoundCounts(String code) throws Exception {
+        Map<String, Integer> roundCounts = new HashMap<>();
+        Document doc = Jsoup.connect("https://rk9.gg/pairings/" + code).get();
+        Elements links = doc.select("ul.nav.nav-pills li a");
+
+        for (Element link : links) {
+            String text = link.text().trim().toLowerCase();
+            if (text.matches("(masters|seniors|juniors) round \\d+")) {
+                String[] parts = text.split(" ");
+                String category = parts[0];
+                int round = Integer.parseInt(parts[2]);
+                roundCounts.merge(category, round, Integer::max);
+            }
+        }
+        return roundCounts;
+    }
+
     private Optional<Player> findPlayerFromDisplayName(String displayName) {
         if (!displayName.contains("[") || !displayName.contains("]")) return Optional.empty();
 
         String country = displayName.substring(displayName.indexOf('[') + 1, displayName.indexOf(']')).trim();
         String fullName = displayName.substring(0, displayName.indexOf('[')).trim();
 
-        String[] nameParts = fullName.split(" ");
-        if (nameParts.length < 2) return Optional.empty();
-
-        String firstName = nameParts[0].trim();
-        String lastName = String.join(" ", Arrays.copyOfRange(nameParts, 1, nameParts.length)).trim();
-
-        return playerRepository.findByFirstNameAndLastNameAndCountry(firstName, lastName, country);
-    }
-
-    private List<Integer> fetchAvailableRounds(String code) throws Exception {
-        Document doc = Jsoup.connect("https://rk9.gg/pairings/" + code).get();
-        Elements roundLinks = doc.select("ul.nav.nav-pills li a");
-
-        Set<Integer> rounds = new TreeSet<>();
-        for (Element link : roundLinks) {
-            String text = link.text().toLowerCase();
-            if (text.contains("masters") && text.matches(".*\\d+")) {
-                String number = text.replaceAll("\\D+", "");
-                try {
-                    rounds.add(Integer.parseInt(number));
-                } catch (NumberFormatException ignored) {}
-            }
-        }
-        return new ArrayList<>(rounds);
+        return playerRepository.findByFullnameAndCountry(fullName, country);
     }
 }

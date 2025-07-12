@@ -9,8 +9,10 @@ import com.critvgc.vgc_api.model.Player;
 
 public interface PlayerRepository extends MongoRepository<Player, String> {
 
-    Optional<Player> findByFirstNameAndLastNameAndCountry(String firstName, String lastName, String country);
+    Optional<Player> findByFullnameAndCountry(String fullname, String country);
 
     @Query("{ 'lastName': { $regex: ?0, $options: 'i' }, 'country': ?1 }")
     List<Player> findByLastNameRegexAndCountry(String lastNamePattern, String country);
+
+    List<Player> findByCountry(String country);
 }
