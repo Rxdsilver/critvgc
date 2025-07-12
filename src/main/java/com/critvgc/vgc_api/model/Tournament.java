@@ -3,6 +3,9 @@ package com.critvgc.vgc_api.model;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,10 +23,11 @@ public class Tournament {
     private String type;
 
     @OneToMany(mappedBy = "tournament", cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<Player> players;
 
     @OneToMany(mappedBy = "tournament", cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<Match> matches;
 
-    // Getters & Setters
 }
