@@ -33,17 +33,18 @@ public class MatchDataLoader {
         this.matchRepository = matchRepository;
     }
 
-    public boolean importMatchesForAllCategories(String code) {
+    public int importMatchesForAllCategories(String code) {
+
         try {
             Optional<Tournament> optTournament = tournamentRepository.findByCode(code);
             if (optTournament.isEmpty()) {
                 System.err.println("Tournament with code " + code + " not found.");
-                return false;
+                return -1;
             }
 
             Tournament tournament = optTournament.get();
             Map<String, Integer> roundCounts = fetchCategoryRoundCounts(code);
-            Map<String, Integer> pods = Map.of("masters", 2, "seniors", 1, "juniors", 0);
+            Map<String, Integer> pods = Map.of("masters", 2, "senior", 9, "junior", 0);
 
             int totalImported = 0;
             for (String category : roundCounts.keySet()) {
@@ -51,7 +52,7 @@ public class MatchDataLoader {
                 int rounds = roundCounts.get(category);
 
                 for (int round = 1; round <= rounds; round++) {
-                    String url = "https://rk9.gg/pairings/" + code + "?pod=" + pod + "&round=" + round;
+                    String url = "https://rk9.gg/pairings/" + code + "?pod=" + pod + "&rnd=" + round;
                     Document doc = Jsoup.connect(url).get();
                     Elements matches = doc.select("div.row.row-cols-3.match.no-gutter.complete");
 
@@ -60,8 +61,15 @@ public class MatchDataLoader {
                         Element player2Div = match.selectFirst("div.player2");
                         if (player1Div == null || player2Div == null) continue;
 
-                        String name1 = player1Div.selectFirst("span.name").text().trim();
-                        String name2 = player2Div.selectFirst("span.name").text().trim();
+                        Element name1El = player1Div.selectFirst("span.name");
+                        Element name2El = player2Div.selectFirst("span.name");
+                        if (name1El == null || name2El == null) {
+                            System.out.println("Skipping match, missing player name span.");
+                            continue;
+                        }
+
+                        String name1 = name1El.text().trim();
+                        String name2 = name2El.text().trim();
 
                         Optional<Player> optP1 = findPlayerFromDisplayName(name1);
                         Optional<Player> optP2 = findPlayerFromDisplayName(name2);
@@ -99,26 +107,28 @@ public class MatchDataLoader {
             }
 
             System.out.println("Imported matches: " + totalImported);
-            return true;
+            return totalImported;
 
         } catch (Exception e) {
             System.err.println("Error importing matches: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return -1;
         }
     }
 
-    private Map<String, Integer> fetchCategoryRoundCounts(String code) throws Exception {
+
+    public Map<String, Integer> fetchCategoryRoundCounts(String code) throws Exception {
         Map<String, Integer> roundCounts = new HashMap<>();
         Document doc = Jsoup.connect("https://rk9.gg/pairings/" + code).get();
         Elements links = doc.select("ul.nav.nav-pills li a");
 
         for (Element link : links) {
             String text = link.text().trim().toLowerCase();
-            if (text.matches("(masters|seniors|juniors) round \\d+")) {
+            // System.out.println("Processing link: " + text);
+            if (text.matches("(masters|senior|junior) in round \\d+")) {
                 String[] parts = text.split(" ");
                 String category = parts[0];
-                int round = Integer.parseInt(parts[2]);
+                int round = Integer.parseInt(parts[3]);
                 roundCounts.merge(category, round, Integer::max);
             }
         }
