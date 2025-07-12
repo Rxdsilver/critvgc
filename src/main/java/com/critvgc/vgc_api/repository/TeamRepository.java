@@ -1,6 +1,13 @@
 package com.critvgc.vgc_api.repository;
 
 import com.critvgc.vgc_api.model.Team;
-import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
 
-public interface TeamRepository extends JpaRepository<Team, Long> {}
+import org.springframework.data.mongodb.repository.MongoRepository;
+
+public interface TeamRepository extends MongoRepository<Team, String> {
+    List<Team> findByPlayerId(String playerId);
+    List<Team> findByTournamentId(String tournamentId);
+    Optional<Team> findByPlayerIdAndTournamentId(String playerId, String tournamentId);
+}

@@ -1,23 +1,20 @@
 package com.critvgc.vgc_api.model;
 
-import jakarta.persistence.*;
 import java.util.List;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
 import lombok.Getter;
 import lombok.Setter;
 
-@Getter
-@Setter
-@Entity
+@Document(collection = "teams")
+@Getter @Setter
 public class Team {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @OneToOne
-    private Player player;
-
-    @ManyToMany
+    private String id;
+    private String playerId;     
+    private String tournamentId; 
     private List<Pokemon> pokemons;
-
-    // Getters & Setters
 }
+
