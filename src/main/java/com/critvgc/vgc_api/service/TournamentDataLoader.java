@@ -97,7 +97,16 @@ public class TournamentDataLoader {
                             team.setPlayerName(player.getFullname());
                             team.setTournamentId(tournament.getId());
                             team.setTournamentName(tournament.getName());
-                            teamRepository.save(team);
+
+                            teamRepository.findByPlayerIdAndTournamentId(player.getId(), tournament.getId())
+                                    .stream().findFirst().ifPresentOrElse(existingTeam -> {
+                                        // Update existing team
+                                        existingTeam.setPokemons(team.getPokemons());
+                                        teamRepository.save(existingTeam);
+                                    }, () -> {
+                                        // Save new team
+                                        teamRepository.save(team);
+                                    });
                         }
                     }
                 } catch (IndexOutOfBoundsException e) {

@@ -76,6 +76,7 @@ public class MatchDataLoader {
                         m.setTournamentId(tournament.getId());
                         m.setPlayer1Id(p1.getId());
                         m.setPlayer1Name(p1.getFullname());
+                        m.setRound(round);
 
                         teamRepository.findByPlayerIdAndTournamentId(p1.getId(), tournament.getId())
                                 .stream().findFirst().ifPresent(t -> m.setTeam1Id(t.getId()));
@@ -107,7 +108,16 @@ public class MatchDataLoader {
                             else if (isTie1 && isTie2) m.setMatchStatus("TIE");
                         }
 
-                        matchRepository.save(m);
+                        matchRepository.findByRoundAndPlayer1IdAndPlayer2Id(
+                                m.getRound(), m.getPlayer1Id(), m.getPlayer2Id())
+                                .ifPresentOrElse(existingMatch -> {
+                                    // Update existing match
+                                    existingMatch.setMatchStatus(m.getMatchStatus());
+                                    matchRepository.save(existingMatch);
+                                }, () -> {
+                                    // Save new match
+                                    matchRepository.save(m);
+                                });
                         totalImported++;
                     }
                 }

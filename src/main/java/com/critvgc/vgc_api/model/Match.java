@@ -18,6 +18,8 @@ public class Match {
     private String player1Name;
     private String player2Name;
 
+    private Integer round;
+
     private String team1Id;
     private String team2Id;  
 
