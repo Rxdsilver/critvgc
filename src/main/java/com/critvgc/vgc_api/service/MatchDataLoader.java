@@ -75,6 +75,7 @@ public class MatchDataLoader {
                         Match m = new Match();
                         m.setTournamentId(tournament.getId());
                         m.setPlayer1Id(p1.getId());
+                        m.setPlayer1Name(p1.getFullname());
 
                         teamRepository.findByPlayerIdAndTournamentId(p1.getId(), tournament.getId())
                                 .stream().findFirst().ifPresent(t -> m.setTeam1Id(t.getId()));
@@ -92,6 +93,7 @@ public class MatchDataLoader {
 
                             Player p2 = optP2.get();
                             m.setPlayer2Id(p2.getId());
+                            m.setPlayer2Name(p2.getFullname());
                             teamRepository.findByPlayerIdAndTournamentId(p2.getId(), tournament.getId())
                                     .stream().findFirst().ifPresent(t -> m.setTeam2Id(t.getId()));
 

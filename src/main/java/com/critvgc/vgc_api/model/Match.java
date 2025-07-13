@@ -15,6 +15,8 @@ public class Match {
     private boolean isBye;
     private String player1Id;
     private String player2Id;
+    private String player1Name;
+    private String player2Name;
 
     private String team1Id;
     private String team2Id;  

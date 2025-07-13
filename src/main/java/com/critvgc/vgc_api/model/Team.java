@@ -13,8 +13,10 @@ import lombok.Setter;
 public class Team {
     @Id
     private String id;
-    private String playerId;     
-    private String tournamentId; 
+    private String playerId;
+    private String playerName;  
+    private String tournamentId;
+    private String tournamentName;
     private List<Pokemon> pokemons;
 }
 

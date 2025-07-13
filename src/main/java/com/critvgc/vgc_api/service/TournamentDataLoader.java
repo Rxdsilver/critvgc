@@ -94,7 +94,9 @@ public class TournamentDataLoader {
                         Team team = parseTeam(teamUrl);
                         if (team != null) {
                             team.setPlayerId(player.getId());
+                            team.setPlayerName(player.getFullname());
                             team.setTournamentId(tournament.getId());
+                            team.setTournamentName(tournament.getName());
                             teamRepository.save(team);
                         }
                     }
@@ -117,30 +119,37 @@ public class TournamentDataLoader {
         }
     }
 
-    private Team parseTeam(String teamUrl) {
+    public Team parseTeam(String teamUrl) {
         try {
             Document doc = Jsoup.connect(teamUrl).get();
-            Elements pokeDivs = doc.select("div.team-pokemon");
+            Elements pokeDivs = doc.select("div#lang-EN div.pokemon.bg-light-green-50.p-3");
 
             List<Pokemon> pokemons = new ArrayList<>();
 
-            for (Element pokeDiv : pokeDivs) {
-                Pokemon poke = new Pokemon();
-                poke.setName(getTextOrEmpty(pokeDiv, ".poke-name"));
-                poke.setTeraType(getTextOrEmpty(pokeDiv, ".poke-tera"));
-                poke.setItem(getTextOrEmpty(pokeDiv, ".poke-item"));
-                poke.setAbility(getTextOrEmpty(pokeDiv, ".poke-ability"));
+            for (Element pokemonDiv : pokeDivs) {
+            Pokemon poke = new Pokemon();
 
-                List<String> moves = new ArrayList<>();
-                Elements moveElements = pokeDiv.select(".poke-moves li");
-                for (Element moveEl : moveElements) {
-                    String move = moveEl.text().trim();
-                    if (!move.isEmpty())
-                        moves.add(move);
-                }
-                poke.setMoves(moves);
-                pokemons.add(poke);
+            String wholeText = pokemonDiv.wholeText();
+
+            String name = wholeText.split("\\bTera Type:")[0].trim().split("\n")[0];
+
+            String type = pokemonDiv.select("b:contains(Tera Type:)").first().nextSibling().toString().trim();
+            String ability = pokemonDiv.select("b:contains(Ability:)").first().nextSibling().toString().replace("&nbsp;", "").trim();
+            String item = pokemonDiv.select("b:contains(Held Item:)").first().nextSibling().toString().trim();
+
+            List<String> moves = new ArrayList<>();
+            Elements moveElements = pokemonDiv.select("h5 span.badge");
+
+            for (Element moveElement : moveElements) {
+                moves.add(moveElement.text());
             }
+            poke.setName(name);
+            poke.setTeraType(type);
+            poke.setAbility(ability);
+            poke.setItem(item);
+            poke.setMoves(moves);
+            pokemons.add(poke);
+        }
 
             Team team = new Team();
             team.setPokemons(pokemons);
@@ -152,10 +161,6 @@ public class TournamentDataLoader {
         }
     }
 
-    private String getTextOrEmpty(Element parent, String cssQuery) {
-        Element el = parent.selectFirst(cssQuery);
-        return el != null ? el.text() : "";
-    }
 
     private String detectRegionFromVenue(String code) {
         try {
