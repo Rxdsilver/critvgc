@@ -75,4 +75,22 @@ class VgcApiApplicationTests {
 		}
 	}
 
+	@Test
+	void testDetectRegionFromVenue(){
+		String code = "NA02wFHPyTOSTSFEbwHA";
+		String region = null;
+		try {
+			region = TournamentDataLoader.detectRegionFromVenue(code);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		assertEquals("NA", region);
+	}
+
+	@Test
+	void testFetchRegionFromCity(){
+		String city = "New Orleans";
+		assertEquals("NA", TournamentDataLoader.fetchRegionFromCity(city));
+	}
+
 }

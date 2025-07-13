@@ -162,31 +162,44 @@ public class TournamentDataLoader {
     }
 
 
-    private String detectRegionFromVenue(String code) {
-        try {
-            String venueUrl = "https://rk9.gg/tournament/" + code;
-            Document doc = Jsoup.connect(venueUrl).get();
+    static public String detectRegionFromVenue(String code) {
+    try {
+        String venueUrl = "https://rk9.gg/tournament/" + code;
+        Document doc = Jsoup.connect(venueUrl).get();
 
-            Element venueElement = doc.selectFirst("div.card-body address");
-            if (venueElement != null) {
-                String fullAddress = venueElement.text();
-                String[] parts = fullAddress.split(",");
-                String city = parts.length > 0 ? parts[0].trim() : "";
+        // Trouve tous les <dt>
+        Elements dtElements = doc.select("dt");
 
-                if (!city.isEmpty()) {
-                    return fetchRegionFromCity(city);
+        for (Element dt : dtElements) {
+            if (dt.text().trim().equalsIgnoreCase("Venue")) {
+                Element dd = dt.nextElementSibling(); // <dd> associé
+                if (dd != null && dd.tagName().equals("dd")) {
+                    String[] lines = dd.html().split("<br>");
+                    for (String line : lines) {
+                        String clean = Jsoup.parse(line).text().trim();
+                        // Cherche ligne avec virgule et état (ex: New Orleans, LA 70130)
+                        if (clean.matches(".*, [A-Z]{2} \\d{5}")) {
+                            // Extrait la ville : "New Orleans" dans "New Orleans, LA 70130"
+                            String city = clean.split(",")[0].trim();
+                            if (!city.isEmpty()) {
+                                return fetchRegionFromCity(city);
+                            }
+                        }
+                    }
                 }
             }
-        } catch (Exception e) {
-            System.err.println("Error detecting region from venue: " + e.getMessage());
         }
-        return "Unknown";
+    } catch (Exception e) {
+        System.err.println("Error detecting region from venue: " + e.getMessage());
     }
+    return "Unknown";
+}
 
-    private String fetchRegionFromCity(String city) {
+
+    public static String fetchRegionFromCity(String city) {
         try {
             String url = "https://nominatim.openstreetmap.org/search?q=" + URLEncoder.encode(city, StandardCharsets.UTF_8)
-                    + "&format=json&limit=1";
+                    + "&format=json&limit=1&addressdetails=1";
 
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
@@ -199,8 +212,11 @@ public class TournamentDataLoader {
 
             if (root.isArray() && root.size() > 0) {
                 JsonNode address = root.get(0).get("address");
-                String continent = address.get("continent").asText();
-                return mapContinentToRegion(continent);
+
+                if (address.has("country")) {
+                    String country = address.get("country").asText();
+                    return mapCountryToRegion(country);
+                }
             }
         } catch (Exception e) {
             System.err.println("Error fetching region from city: " + e.getMessage());
@@ -208,14 +224,33 @@ public class TournamentDataLoader {
         return "Unknown";
     }
 
-    private String mapContinentToRegion(String continent) {
-        switch (continent.toLowerCase()) {
-            case "europe": return "EU";
-            case "north america": return "NA";
-            case "south america": return "LAT";
-            case "oceania": return "OCE";
-            case "africa": return "AFR";
-            default: return "Unknown";
+
+    private static String mapCountryToRegion(String country) {
+        switch (country.toLowerCase()) {
+            case "united states":
+            case "canada":
+            case "mexico":
+                return "NA";
+            case "france":
+            case "germany":
+            case "spain":
+            case "united kingdom":
+            case "italy":
+            case "netherlands":
+                return "EU";
+            case "brazil":
+            case "argentina":
+            case "chile":
+                return "LAT";
+            case "australia":
+            case "new zealand":
+                return "OCE";
+            case "south africa":
+            case "nigeria":
+                return "AFR";
+            default:
+                return "Unknown";
         }
     }
+
 }
