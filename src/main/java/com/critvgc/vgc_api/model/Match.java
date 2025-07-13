@@ -12,12 +12,12 @@ public class Match {
     private String id;
 
     private String tournamentId;
-
+    private boolean isBye;
     private String player1Id;
     private String player2Id;
 
     private String team1Id;
     private String team2Id;  
 
-    private String winnerId;
+    private String matchStatus ;
 }

@@ -40,7 +40,7 @@ public class TournamentDataLoader {
     public boolean importOrUpdateTournament(String code) {
         try {
             String rosterUrl = "https://rk9.gg/roster/" + code;
-            Document doc = Jsoup.connect(rosterUrl).get();
+            Document doc = Jsoup.connect(rosterUrl).maxBodySize(0).get();;
 
             Element nameElement = doc.selectFirst("div.pt-4 h4");
             String tournamentName = nameElement != null ? nameElement.text().trim() : "Unnamed Tournament";
@@ -66,38 +66,44 @@ public class TournamentDataLoader {
             tournament.setLocation(location);
             tournamentRepository.save(tournament);
 
-            Elements rows = doc.select("table#dtLiveRoster tbody tr");
+            Elements rows = doc.select("table tbody tr");
 
             for (Element row : rows) {
                 Elements cells = row.select("td");
-                if (cells.size() < 8) continue;
 
-                String fullname = cells.get(1).text()+" "+cells.get(2).text();
-                String country = cells.get(3).text();
-                String division = cells.get(4).text().toUpperCase();
-                Element link = cells.get(6).selectFirst("a");
+                try {
+                    String fullname = cells.get(1).text()+" "+cells.get(2).text();
+                    String country = cells.get(3).text();
+                    String division = cells.get(4).text().toUpperCase();
+                    Element link = cells.get(6).selectFirst("a");
 
-                if (link != null) {
-                    String relativeHref = link.attr("href");
-                    String teamUrl = "https://rk9.gg" + relativeHref;
+                    if (link != null) {
+                        String relativeHref = link.attr("href");
+                        String teamUrl = "https://rk9.gg" + relativeHref;
 
-                    Player player = playerRepository.findByFullnameAndCountry(fullname, country)
-                            .orElseGet(() -> {
-                                Player p = new Player();
-                                p.setFullname(fullname);
-                                p.setDivision(division);
-                                p.setCountry(country);
-                                playerRepository.save(p);
-                                return p;
-                            });
+                        Player player = playerRepository.findByFullnameAndCountry(fullname, country)
+                                .orElseGet(() -> {
+                                    Player p = new Player();
+                                    p.setFullname(fullname);
+                                    p.setDivision(division);
+                                    p.setCountry(country);
+                                    playerRepository.save(p);
+                                    return p;
+                                });
 
-                    Team team = parseTeam(teamUrl);
-                    if (team != null) {
-                        team.setPlayerId(player.getId());
-                        team.setTournamentId(tournament.getId());
-                        teamRepository.save(team);
+                        Team team = parseTeam(teamUrl);
+                        if (team != null) {
+                            team.setPlayerId(player.getId());
+                            team.setTournamentId(tournament.getId());
+                            teamRepository.save(team);
+                        }
                     }
+                } catch (IndexOutOfBoundsException e) {
+                    System.err.println("Skipping row due to missing data: " + e.getMessage()
+                            + " in row: " + row.text());
+                    continue;
                 }
+                
             }
 
             matchDataLoader.importMatchesForAllCategories(code);

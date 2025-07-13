@@ -59,46 +59,51 @@ public class MatchDataLoader {
                     for (Element match : matches) {
                         Element player1Div = match.selectFirst("div.player1");
                         Element player2Div = match.selectFirst("div.player2");
-                        if (player1Div == null || player2Div == null) continue;
 
-                        Element name1El = player1Div.selectFirst("span.name");
-                        Element name2El = player2Div.selectFirst("span.name");
-                        if (name1El == null || name2El == null) {
-                            System.out.println("Skipping match, missing player name span.");
-                            continue;
-                        }
+                        String player1Name = player1Div.select("span.name").text().trim();
+                        String player2Name = player2Div.select("span.name").text().trim();
 
-                        String name1 = name1El.text().trim();
-                        String name2 = name2El.text().trim();
+                        boolean isBye = player2Name.isEmpty();
 
-                        Optional<Player> optP1 = findPlayerFromDisplayName(name1);
-                        Optional<Player> optP2 = findPlayerFromDisplayName(name2);
-
-                        if (optP1.isEmpty() || optP2.isEmpty()) {
-                            System.out.println("Skipping match, player not found: " + name1 + " vs " + name2);
+                        Optional<Player> optP1 = findPlayerFromDisplayName(player1Name);
+                        if (optP1.isEmpty()) {
+                            // System.out.println("Skipping match, player 1 not found: " + player1Name);
                             continue;
                         }
 
                         Player p1 = optP1.get();
-                        Player p2 = optP2.get();
-
                         Match m = new Match();
                         m.setTournamentId(tournament.getId());
                         m.setPlayer1Id(p1.getId());
-                        m.setPlayer2Id(p2.getId());
 
                         teamRepository.findByPlayerIdAndTournamentId(p1.getId(), tournament.getId())
                                 .stream().findFirst().ifPresent(t -> m.setTeam1Id(t.getId()));
-                        teamRepository.findByPlayerIdAndTournamentId(p2.getId(), tournament.getId())
-                                .stream().findFirst().ifPresent(t -> m.setTeam2Id(t.getId()));
 
-                        boolean p1Win = player1Div.classNames().contains("winner");
-                        boolean p2Win = player2Div.classNames().contains("winner");
-                        boolean tie = player1Div.classNames().contains("tie") && player2Div.classNames().contains("tie");
+                        if (isBye) {
+                            // Match avec un seul joueur
+                            m.setBye(true);
+                            m.setMatchStatus("P1_WIN");
+                        } else {
+                            Optional<Player> optP2 = findPlayerFromDisplayName(player2Name);
+                            if (optP2.isEmpty()) {
+                                // System.out.println("Skipping match, player 2 not found: " + player2Name);
+                                continue;
+                            }
 
-                        if (p1Win) m.setWinnerId(p1.getId());
-                        else if (p2Win) m.setWinnerId(p2.getId());
-                        else if (tie) m.setWinnerId(null);
+                            Player p2 = optP2.get();
+                            m.setPlayer2Id(p2.getId());
+                            teamRepository.findByPlayerIdAndTournamentId(p2.getId(), tournament.getId())
+                                    .stream().findFirst().ifPresent(t -> m.setTeam2Id(t.getId()));
+
+                            boolean player1IsWinner = player1Div.hasClass("winner");
+                            boolean player2IsWinner = player2Div.hasClass("winner");
+                            boolean isTie1 = player1Div.hasClass("tie");
+                            boolean isTie2 = player2Div.hasClass("tie");
+
+                            if (player1IsWinner) m.setMatchStatus("P1_WIN");
+                            else if (player2IsWinner) m.setMatchStatus("P2_WIN");
+                            else if (isTie1 && isTie2) m.setMatchStatus("TIE");
+                        }
 
                         matchRepository.save(m);
                         totalImported++;
