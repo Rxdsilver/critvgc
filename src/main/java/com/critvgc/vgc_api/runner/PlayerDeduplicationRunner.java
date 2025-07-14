@@ -29,32 +29,38 @@ public class PlayerDeduplicationRunner implements CommandLineRunner {
     }
 
     @Override
-    public void run(String... args) {
-        System.out.println("Starting player deduplication...");
+public void run(String... args) {
+    System.out.println("Starting player deduplication...");
 
-        List<Player> players = playerRepository.findAll();
+    List<Player> players = playerRepository.findAll();
 
-        // Group by normalized fullname + country
-        Map<String, List<Player>> grouped = players.stream()
-                .collect(Collectors.groupingBy(p -> normalize(p.getFullname()) + "|" + p.getCountry()));
+    // Group by normalized fullname + country
+    Map<String, List<Player>> grouped = players.stream()
+            .collect(Collectors.groupingBy(p -> normalize(p.getFullname()) + "|" + p.getCountry()));
 
-        int mergedCount = 0;
+    int mergedCount = 0;
 
-        for (List<Player> duplicates : grouped.values()) {
-            if (duplicates.size() <= 1) continue;
+    for (List<Player> duplicates : grouped.values()) {
+        if (duplicates.size() <= 1) continue;
 
-            Player keeper = duplicates.get(0); // keep the first
-            List<Player> toDelete = duplicates.subList(1, duplicates.size());
+        Player keeper = duplicates.get(0); // keep the first
+        List<Player> toDelete = duplicates.subList(1, duplicates.size());
 
-            for (Player duplicate : toDelete) {
-                replaceReferences(duplicate, keeper);
-                playerRepository.deleteById(duplicate.getId());
-                mergedCount++;
-            }
+        for (Player duplicate : toDelete) {
+            replaceReferences(duplicate, keeper);
+            playerRepository.deleteById(duplicate.getId());
+            mergedCount++;
         }
-
-        System.out.println("Player deduplication complete. Merged " + mergedCount + " duplicate(s).");
     }
+
+    System.out.println("Merged " + mergedCount + " duplicate player(s). Now checking for duplicate matches...");
+
+    int removed = removeDuplicateMatches();
+    System.out.println("Removed " + removed + " duplicate match(es).");
+
+    System.out.println("Player deduplication complete.");
+}
+
 
     private void replaceReferences(Player from, Player to) {
         // Update matches
@@ -92,4 +98,37 @@ public class PlayerDeduplicationRunner implements CommandLineRunner {
                          .replaceAll("\\p{M}", "")
                          .toLowerCase();
     }
+
+    private int removeDuplicateMatches() {
+        List<Match> allMatches = matchRepository.findAll();
+
+        Set<String> uniqueMatchKeys = new HashSet<>();
+        List<Match> toDelete = new ArrayList<>();
+
+        for (Match match : allMatches) {
+            String playerA = match.getPlayer1Id();
+            String playerB = match.getPlayer2Id();
+
+            String key;
+            if (playerB == null) {
+                key = String.join("|", playerA, "BYE", match.getTournamentId(), String.valueOf(match.getRound()));
+            } else {
+                List<String> players = Arrays.asList(playerA, playerB);
+                players.sort(Comparator.nullsLast(String::compareTo)); // null en dernier, juste au cas où
+                key = String.join("|", players.get(0), players.get(1), match.getTournamentId(), String.valueOf(match.getRound()));
+            }
+
+            if (uniqueMatchKeys.contains(key)) {
+                toDelete.add(match);
+            } else {
+                uniqueMatchKeys.add(key);
+            }
+        }
+
+        toDelete.forEach(match -> matchRepository.deleteById(match.getId()));
+        return toDelete.size();
+    }
+
+
+
 }

@@ -1,6 +1,7 @@
 package com.critvgc.vgc_api.model;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -17,6 +18,12 @@ public class Tournament {
     private String location;
     private LocalDate date;
     private String code;
+
+    private List<Player> masters;
+    private List<Player> seniors;
+    private List<Player> juniors;
+
+
 }
 
 

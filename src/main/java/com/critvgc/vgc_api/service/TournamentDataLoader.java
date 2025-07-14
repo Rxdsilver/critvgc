@@ -64,7 +64,10 @@ public class TournamentDataLoader {
             tournament.setName(tournamentName);
             tournament.setDate(tournamentDate);
             tournament.setLocation(location);
-            tournamentRepository.save(tournament);
+            
+            List<Player> masters = new ArrayList<>();
+            List<Player> seniors = new ArrayList<>();
+            List<Player> juniors = new ArrayList<>();
 
             Elements rows = doc.select("table tbody tr");
 
@@ -75,6 +78,7 @@ public class TournamentDataLoader {
                     String fullname = cells.get(1).text()+" "+cells.get(2).text();
                     String country = cells.get(3).text();
                     String division = cells.get(4).text().toUpperCase();
+                    Integer standing = Integer.parseInt(cells.get(7).text());
                     Element link = cells.get(6).selectFirst("a");
 
                     if (link != null) {
@@ -87,9 +91,15 @@ public class TournamentDataLoader {
                                     p.setFullname(fullname);
                                     p.setDivision(division);
                                     p.setCountry(country);
-                                    playerRepository.save(p);
-                                    return p;
+                                    return playerRepository.save(p);
+                                    
                                 });
+
+                        switch (division) {
+                            case "MASTERS" -> insertAtRank(masters, standing, player);
+                            case "SENIOR" -> insertAtRank(seniors, standing, player);
+                            case "JUNIOR" -> insertAtRank(juniors, standing, player);
+                        }
 
                         Team team = parseTeam(teamUrl);
                         if (team != null) {
@@ -116,7 +126,10 @@ public class TournamentDataLoader {
                 }
                 
             }
-
+            tournament.setMasters(masters);
+            tournament.setSeniors(seniors);
+            tournament.setJuniors(juniors);
+            tournamentRepository.save(tournament);
             matchDataLoader.importMatchesForAllCategories(code);
 
             System.out.println("Tournament import complete.");
@@ -261,5 +274,13 @@ public class TournamentDataLoader {
                 return "Unknown";
         }
     }
+
+    private void insertAtRank(List<Player> list, int rank, Player player) {
+    int index = rank - 1;
+    while (list.size() <= index) {
+        list.add(null); // remplissage pour atteindre la bonne taille
+    }
+    list.set(index, player);
+}
 
 }

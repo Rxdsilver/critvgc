@@ -9,6 +9,7 @@ import com.critvgc.vgc_api.model.Player;
 public interface PlayerRepository extends MongoRepository<Player, String> {
 
     Optional<Player> findByFullnameAndCountry(String fullname, String country);
+    List<Player> findByFullname(String fullname);
 
     List<Player> findByCountry(String country);
 }
